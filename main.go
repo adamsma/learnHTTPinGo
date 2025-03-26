@@ -19,40 +19,60 @@ func main() {
 	}
 	defer file.Close()
 
-	var line string
+	lines := getLinesChannel(file)
 
-	for {
-
-		data := make([]byte, 8)
-		_, err := file.Read(data)
-		parts := strings.Split(string(data), "\n")
-
-		if err != nil {
-
-			if errors.Is(err, io.EOF) {
-				break
-			}
-
-			log.Fatalf("error: %s\n", err.Error())
-			break
-		}
-
-		for i, part := range parts {
-
-			if i == len(parts)-1 {
-				line += parts[len(parts)-1]
-				break
-			}
-
-			line += part
-			fmt.Printf("read: %s\n", line)
-			line = ""
-		}
-
+	for line := range lines {
+		fmt.Println("read:", line)
 	}
 
-	if line != "" {
-		fmt.Printf("read: %s\n", line)
-	}
+}
+
+func getLinesChannel(f io.ReadCloser) <-chan string {
+
+	ch := make(chan string)
+
+	go func() {
+
+		line := ""
+		defer close(ch)
+
+		for {
+
+			data := make([]byte, 8)
+			n, err := f.Read(data)
+
+			if err != nil {
+
+				if errors.Is(err, io.EOF) {
+					break
+				}
+
+				log.Fatalf("error: %s\n", err.Error())
+
+			}
+
+			parts := strings.Split(string(data[:n]), "\n")
+
+			for i, part := range parts {
+
+				if i == len(parts)-1 {
+					line += parts[len(parts)-1]
+					break
+				}
+
+				line += part
+				ch <- line
+				line = ""
+			}
+
+		}
+
+		if line != "" {
+			ch <- line
+		}
+
+	}()
+
+	return ch
 
 }
