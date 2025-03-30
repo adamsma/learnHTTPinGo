@@ -10,6 +10,7 @@ import (
 )
 
 // const inputPath = "messages.txt"
+const port = ":42069"
 
 func main() {
 
@@ -19,11 +20,13 @@ func main() {
 	// }
 	// defer file.Close()
 
-	l, err := net.Listen("tcp", ":42069")
+	l, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatalf("could not open listening port: %s", err.Error())
 	}
 	defer l.Close()
+
+	fmt.Println("Listening for TCP traffic on", port)
 
 	for {
 
