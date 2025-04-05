@@ -8,13 +8,9 @@ import (
 	"strings"
 )
 
-const INITIALIZED = 1
-const DONE = 2
-const BUFFER_SIZE = 8
-
 type Request struct {
 	RequestLine RequestLine
-	parseState  int
+	parseState  requestState
 }
 
 type RequestLine struct {
@@ -23,7 +19,15 @@ type RequestLine struct {
 	Method        string
 }
 
+type requestState int
+
+const (
+	INITIALIZED requestState = iota
+	DONE
+)
+
 const crlf = "\r\n"
+const BUFFER_SIZE = 8
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
 
@@ -46,7 +50,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 		readToIndex += n
 
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			req.parseState = DONE
 			break
 		}
@@ -56,14 +60,11 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 
 		n, err = req.parse(buf[:readToIndex])
-		newBuf := make([]byte, len(buf), cap(buf))
-		copy(newBuf, buf[:readToIndex])
-		buf = newBuf
-
 		if err != nil {
 			return nil, err
 		}
 
+		copy(buf, buf[n:])
 		readToIndex -= n
 
 	}
@@ -86,6 +87,8 @@ func (r *Request) parse(data []byte) (int, error) {
 
 		r.RequestLine = *rl
 		r.parseState = DONE
+
+		return n, nil
 	}
 
 	if r.parseState == DONE {
