@@ -8,8 +8,13 @@ import (
 	"strings"
 )
 
+const INITIALIZED = 1
+const DONE = 2
+const BUFFER_SIZE = 8
+
 type Request struct {
 	RequestLine RequestLine
+	parseState  int
 }
 
 type RequestLine struct {
@@ -22,34 +27,89 @@ const crlf = "\r\n"
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
 
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, err
+	buf := make([]byte, BUFFER_SIZE)
+	readToIndex := 0
+
+	req := &Request{
+		parseState: INITIALIZED,
 	}
 
-	rl, err := parseRequestLine(data)
-	if err != nil {
-		return nil, err
+	for req.parseState != DONE {
+
+		if readToIndex >= len(buf) {
+			newBuf := make([]byte, 2*len(buf), 2*cap(buf))
+			copy(newBuf, buf)
+			buf = newBuf
+		}
+
+		n, err := reader.Read(buf[readToIndex:])
+
+		readToIndex += n
+
+		if err == io.EOF {
+			req.parseState = DONE
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		n, err = req.parse(buf[:readToIndex])
+		newBuf := make([]byte, len(buf), cap(buf))
+		copy(newBuf, buf[:readToIndex])
+		buf = newBuf
+
+		if err != nil {
+			return nil, err
+		}
+
+		readToIndex -= n
+
 	}
 
-	return &Request{RequestLine: *rl}, nil
+	return req, nil
 
 }
 
-func parseRequestLine(data []byte) (*RequestLine, error) {
+func (r *Request) parse(data []byte) (int, error) {
+
+	if r.parseState == INITIALIZED {
+		n, rl, err := parseRequestLine(data)
+		if err != nil {
+			return 0, err
+		}
+
+		if n == 0 {
+			return 0, nil
+		}
+
+		r.RequestLine = *rl
+		r.parseState = DONE
+	}
+
+	if r.parseState == DONE {
+		return 0, errors.New("error: tyring to read data in a done state")
+	}
+
+	return 0, fmt.Errorf("unknown state: %d", r.parseState)
+
+}
+
+func parseRequestLine(data []byte) (int, *RequestLine, error) {
 
 	idx := bytes.Index(data, []byte(crlf))
 	if idx == -1 {
-		return nil, fmt.Errorf("could not find CRLF in request-line")
+		return 0, nil, nil
 	}
 
 	reqLineText := string(data[:idx])
 	rl, err := requestLineFromString(reqLineText)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
-	return rl, nil
+	return idx, rl, nil
 
 }
 
