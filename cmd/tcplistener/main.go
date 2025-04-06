@@ -1,12 +1,10 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"io"
+	"httpfromtcp/internal/request"
 	"log"
 	"net"
-	"strings"
 )
 
 // const inputPath = "messages.txt"
@@ -38,11 +36,15 @@ func main() {
 		fmt.Println("Reading data from connection")
 		fmt.Println("=====================================")
 
-		lines := getLinesChannel(conn)
-
-		for line := range lines {
-			fmt.Println(line)
+		req, err := request.RequestFromReader(conn)
+		if err != nil {
+			log.Fatalf("error processing request: %v", err)
 		}
+
+		fmt.Println("Request line:")
+		fmt.Println("- Method:", req.RequestLine.Method)
+		fmt.Println("- Target:", req.RequestLine.RequestTarget)
+		fmt.Println("- Version:", req.RequestLine.HttpVersion)
 
 		fmt.Println("Connection closed")
 
@@ -50,52 +52,52 @@ func main() {
 
 }
 
-func getLinesChannel(f io.ReadCloser) <-chan string {
+// func getLinesChannel(f io.ReadCloser) <-chan string {
 
-	ch := make(chan string)
+// 	ch := make(chan string)
 
-	go func() {
+// 	go func() {
 
-		line := ""
-		defer close(ch)
+// 		line := ""
+// 		defer close(ch)
 
-		for {
+// 		for {
 
-			data := make([]byte, 8)
-			n, err := f.Read(data)
+// 			data := make([]byte, 8)
+// 			n, err := f.Read(data)
 
-			if err != nil {
+// 			if err != nil {
 
-				if errors.Is(err, io.EOF) {
-					break
-				}
+// 				if errors.Is(err, io.EOF) {
+// 					break
+// 				}
 
-				log.Fatalf("error: %s\n", err.Error())
+// 				log.Fatalf("error: %s\n", err.Error())
 
-			}
+// 			}
 
-			parts := strings.Split(string(data[:n]), "\n")
+// 			parts := strings.Split(string(data[:n]), "\n")
 
-			for i, part := range parts {
+// 			for i, part := range parts {
 
-				if i == len(parts)-1 {
-					line += parts[len(parts)-1]
-					break
-				}
+// 				if i == len(parts)-1 {
+// 					line += parts[len(parts)-1]
+// 					break
+// 				}
 
-				line += part
-				ch <- line
-				line = ""
-			}
+// 				line += part
+// 				ch <- line
+// 				line = ""
+// 			}
 
-		}
+// 		}
 
-		if line != "" {
-			ch <- line
-		}
+// 		if line != "" {
+// 			ch <- line
+// 		}
 
-	}()
+// 	}()
 
-	return ch
+// 	return ch
 
-}
+// }
