@@ -1,0 +1,63 @@
+package headers
+
+import (
+	"bytes"
+	"fmt"
+	"strings"
+)
+
+type Headers map[string]string
+
+func NewHeaders() Headers {
+	return make(Headers)
+}
+
+func (h Headers) Set(key, value string) {
+	h[key] = value
+}
+
+const crlf = "\r\n"
+
+func (h Headers) Parse(data []byte) (n int, done bool, err error) {
+
+	if strings.HasPrefix(string(data), crlf) {
+		return 2, true, nil
+	}
+
+	n, header, value, err := parseHeaderLine(data)
+	if err != nil {
+		return 0, false, err
+	}
+
+	if n == 0 {
+		return 0, false, nil
+	}
+
+	h.Set(header, value)
+
+	return n, false, nil
+}
+
+func parseHeaderLine(data []byte) (n int, key string, value string, err error) {
+
+	idx := bytes.Index(data, []byte(crlf))
+	if idx == -1 {
+		return 0, "", "", nil
+	}
+
+	headerLineText := string(data[:idx])
+	key, value, found := strings.Cut(headerLineText, ":")
+	if !found {
+		return 0, "", "", fmt.Errorf("malformed header: %s", headerLineText)
+	}
+
+	if key != strings.TrimRight(key, " ") {
+		return 0, "", "", fmt.Errorf("malformed header: %s", headerLineText)
+	}
+
+	key = strings.TrimSpace(key)
+	value = strings.TrimSpace(value)
+
+	return idx + len(crlf), key, value, nil
+
+}
