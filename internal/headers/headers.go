@@ -3,6 +3,7 @@ package headers
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -17,6 +18,7 @@ func (h Headers) Set(key, value string) {
 }
 
 const crlf = "\r\n"
+const validCharRegexp = "^[a-z0-9!#$%&'*+.^_`|~-]*$"
 
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
@@ -31,6 +33,10 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 	if n == 0 {
 		return 0, false, nil
+	}
+
+	if curVal, exists := h[header]; exists {
+		value = curVal + ", " + value 
 	}
 
 	h.Set(header, value)
@@ -55,8 +61,13 @@ func parseHeaderLine(data []byte) (n int, key string, value string, err error) {
 		return 0, "", "", fmt.Errorf("malformed header: %s", headerLineText)
 	}
 
-	key = strings.TrimSpace(key)
+	key = strings.ToLower(strings.TrimSpace(key))
 	value = strings.TrimSpace(value)
+
+	if matched, _ := regexp.MatchString(validCharRegexp, key); !matched {
+		err = fmt.Errorf("header field name contains invalid character(s): %s", key)
+		return 0, "", "", err
+	}
 
 	return idx + len(crlf), key, value, nil
 
