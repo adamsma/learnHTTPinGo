@@ -31,12 +31,13 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		return 0, false, err
 	}
 
+	// need more data
 	if n == 0 {
 		return 0, false, nil
 	}
 
 	if curVal, exists := h[header]; exists {
-		value = curVal + ", " + value 
+		value = curVal + ", " + value
 	}
 
 	h.Set(header, value)

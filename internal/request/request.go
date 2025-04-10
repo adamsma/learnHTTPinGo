@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"httpfromtcp/internal/headers"
 	"io"
 	"strings"
 )
@@ -11,6 +12,7 @@ import (
 type Request struct {
 	RequestLine RequestLine
 	parseState  requestState
+	Headers     headers.Headers
 }
 
 type RequestLine struct {
@@ -23,6 +25,7 @@ type requestState int
 
 const (
 	INITIALIZED requestState = iota
+	PARSING_HEADERS
 	DONE
 )
 
@@ -36,6 +39,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 	req := &Request{
 		parseState: INITIALIZED,
+		Headers:    headers.NewHeaders(),
 	}
 
 	for req.parseState != DONE {
@@ -51,7 +55,9 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		readToIndex += n
 
 		if errors.Is(err, io.EOF) {
-			req.parseState = DONE
+			if req.parseState != DONE {
+				return nil, fmt.Errorf("incomplete request, in state: %d, read n bytes on EOF: %d", req.parseState, n)
+			}
 			break
 		}
 
@@ -75,27 +81,65 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 func (r *Request) parse(data []byte) (int, error) {
 
-	if r.parseState == INITIALIZED {
+	totalBytesParsed := 0
+	for r.parseState != DONE {
+		n, err := r.parseSingle(data[totalBytesParsed:])
+		if err != nil {
+			return n, err
+		}
+
+		totalBytesParsed += n
+
+		// need more data
+		if n == 0 {
+			break
+		}
+
+	}
+
+	return totalBytesParsed, nil
+
+}
+
+func (r *Request) parseSingle(data []byte) (int, error) {
+
+	switch r.parseState {
+	case INITIALIZED:
+
 		n, rl, err := parseRequestLine(data)
 		if err != nil {
 			return 0, err
 		}
 
+		// need more data
 		if n == 0 {
 			return 0, nil
 		}
 
 		r.RequestLine = *rl
-		r.parseState = DONE
+		r.parseState = PARSING_HEADERS
 
 		return n, nil
-	}
 
-	if r.parseState == DONE {
+	case PARSING_HEADERS:
+
+		n, done, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, err
+		}
+
+		if done {
+			r.parseState = DONE
+			return n, nil
+		}
+
+		return n, nil
+
+	case DONE:
 		return 0, errors.New("error: tyring to read data in a done state")
+	default:
+		return 0, fmt.Errorf("unknown state: %d", r.parseState)
 	}
-
-	return 0, fmt.Errorf("unknown state: %d", r.parseState)
 
 }
 
@@ -112,7 +156,7 @@ func parseRequestLine(data []byte) (int, *RequestLine, error) {
 		return 0, nil, err
 	}
 
-	return idx, rl, nil
+	return idx + 2, rl, nil
 
 }
 
