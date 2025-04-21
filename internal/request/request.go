@@ -6,13 +6,16 @@ import (
 	"fmt"
 	"httpfromtcp/internal/headers"
 	"io"
+	"strconv"
 	"strings"
 )
 
 type Request struct {
-	RequestLine RequestLine
-	parseState  requestState
-	Headers     headers.Headers
+	RequestLine    RequestLine
+	parseState     requestState
+	Headers        headers.Headers
+	Body           []byte
+	bodyLengthRead int
 }
 
 type RequestLine struct {
@@ -26,6 +29,7 @@ type requestState int
 const (
 	INITIALIZED requestState = iota
 	PARSING_HEADERS
+	PARSING_BODY
 	DONE
 )
 
@@ -40,6 +44,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	req := &Request{
 		parseState: INITIALIZED,
 		Headers:    headers.NewHeaders(),
+		Body:       make([]byte, 0),
 	}
 
 	for req.parseState != DONE {
@@ -83,6 +88,7 @@ func (r *Request) parse(data []byte) (int, error) {
 
 	totalBytesParsed := 0
 	for r.parseState != DONE {
+
 		n, err := r.parseSingle(data[totalBytesParsed:])
 		if err != nil {
 			return n, err
@@ -129,11 +135,45 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 		}
 
 		if done {
-			r.parseState = DONE
+			r.parseState = PARSING_BODY
 			return n, nil
 		}
 
 		return n, nil
+
+	case PARSING_BODY:
+
+		// if we are parsing the body, we expect to have a Content-Length header
+		contentLengthVal, exists := r.Headers.Get("Content-Length")
+
+		if !exists {
+			// if there is no Content-Length header, we assume the body is empty
+			r.parseState = DONE
+			return len(data), nil
+		}
+
+		contentLength, err := strconv.Atoi(contentLengthVal)
+		if err != nil {
+			return 0, fmt.Errorf("invalid Content-Length header: %s", contentLengthVal)
+		}
+
+		if contentLength == 0 {
+			r.parseState = DONE
+			return len(data), nil
+		}
+
+		r.Body = append(r.Body, data...)
+		r.bodyLengthRead += len(data)
+
+		if r.bodyLengthRead > contentLength {
+			return len(r.Body), fmt.Errorf("error: body length %d exceeds Content-Length %d", len(r.Body), contentLength)
+		}
+
+		if r.bodyLengthRead == contentLength {
+			r.parseState = DONE
+		}
+
+		return len(data), nil
 
 	case DONE:
 		return 0, errors.New("error: tyring to read data in a done state")

@@ -17,6 +17,11 @@ func (h Headers) Set(key, value string) {
 	h[key] = value
 }
 
+func (h Headers) Get(key string) (value string, exists bool) {
+	value, exists = h[strings.ToLower(key)]
+	return
+}
+
 const crlf = "\r\n"
 const validCharRegexp = "^[a-z0-9!#$%&'*+.^_`|~-]*$"
 

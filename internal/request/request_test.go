@@ -201,7 +201,7 @@ func TestBodyParst(t *testing.T) {
 	r, err = RequestFromReader(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, nil, string(r.Body))
+	assert.Equal(t, "", string(r.Body))
 
 	// Test: Empty Body, no reported content length
 	reader = &chunkReader{
@@ -213,7 +213,7 @@ func TestBodyParst(t *testing.T) {
 	r, err = RequestFromReader(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, nil, string(r.Body))
+	assert.Equal(t, "", string(r.Body))
 
 	// Test: No Content-Length but Body Exists
 	reader = &chunkReader{
@@ -226,7 +226,7 @@ func TestBodyParst(t *testing.T) {
 	_, err = RequestFromReader(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	assert.Equal(t, nil, string(r.Body))
+	assert.Equal(t, "", string(r.Body))
 
 	// Test: Body shorter than reported content length
 	reader = &chunkReader{
