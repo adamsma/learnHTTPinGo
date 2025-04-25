@@ -51,6 +51,11 @@ func main() {
 			fmt.Printf("- %s: %s\n", key, value)
 		}
 
+		fmt.Println("Body:")
+		if len(req.Body) > 0 {
+			fmt.Println(string(req.Body))
+		}
+
 		fmt.Println("Connection closed")
 
 	}
