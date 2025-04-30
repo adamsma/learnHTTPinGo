@@ -1,9 +1,9 @@
 package server
 
 import (
+	"fmt"
 	"log"
 	"net"
-	"strconv"
 	"sync/atomic"
 )
 
@@ -15,10 +15,10 @@ type Server struct {
 
 func Serve(port int) (*Server, error) {
 
-	l, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 
 	if err != nil {
-		log.Fatalf("could not open listening port: %s", err.Error())
+		return nil, err
 	}
 
 	s := Server{Port: port, listener: l}
@@ -32,19 +32,26 @@ func Serve(port int) (*Server, error) {
 
 func (s *Server) Close() error {
 
-	s.listener.Close()
 	s.closed.Store(true)
+
+	if s.listener != nil {
+		return s.listener.Close()
+	}
 
 	return nil
 }
 
 func (s *Server) listen() {
 
-	for !s.closed.Load() {
+	for {
 
 		conn, err := s.listener.Accept()
 		if err != nil {
-			log.Fatalf("could not accept connection: %s", err.Error())
+			if s.closed.Load() {
+				return
+			}
+			log.Printf("could not accept connection: %s", err.Error())
+			continue
 		}
 
 		go s.handle(conn)
@@ -54,8 +61,12 @@ func (s *Server) listen() {
 
 func (s *Server) handle(conn net.Conn) {
 
-	msg := "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello World!"
+	defer conn.Close()
+
+	msg := "HTTP/1.1 200 OK\r\n" + // Status line
+		"Content-Type: text/plain\r\n" + // Example header
+		"\r\n" + // Blank line to separate headers from the body
+		"Hello World!\n" // Body
 	conn.Write([]byte(msg))
-	conn.Close()
 
 }
