@@ -64,14 +64,8 @@ func (s *Server) handle(conn net.Conn) {
 
 	defer conn.Close()
 
-	response.WriteStatusLine(conn, response.STATUS_200)
-
+	response.WriteStatusLine(conn, response.StatusCodeSuccess)
 	h := response.GetDefaultHeaders(0)
-	for key, val := range h {
-		hLine := key + ": " + val + "\r\n"
-		conn.Write([]byte(hLine))
-	}
-
-	conn.Write([]byte("\r\n"))
+	response.WriteHeaders(conn, h)
 
 }
