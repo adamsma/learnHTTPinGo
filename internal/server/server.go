@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"httpfromtcp/internal/response"
 	"log"
 	"net"
 	"sync/atomic"
@@ -63,10 +64,14 @@ func (s *Server) handle(conn net.Conn) {
 
 	defer conn.Close()
 
-	msg := "HTTP/1.1 200 OK\r\n" + // Status line
-		"Content-Type: text/plain\r\n" + // Example header
-		"\r\n" + // Blank line to separate headers from the body
-		"Hello World!\n" // Body
-	conn.Write([]byte(msg))
+	response.WriteStatusLine(conn, response.STATUS_200)
+
+	h := response.GetDefaultHeaders(0)
+	for key, val := range h {
+		hLine := key + ": " + val + "\r\n"
+		conn.Write([]byte(hLine))
+	}
+
+	conn.Write([]byte("\r\n"))
 
 }
