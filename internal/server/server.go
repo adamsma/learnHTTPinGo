@@ -73,15 +73,17 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 
+	sc := response.StatusCodeSuccess
+
 	var b bytes.Buffer
 	hErr := s.Handler(&b, req)
 	if hErr != nil {
-		hErr.Write(conn)
-		return
+		hErr.Write(&b)
+		sc = hErr.StatusCode
 	}
 
-	h := response.GetDefaultHeaders(0)
-	response.WriteStatusLine(conn, response.StatusCodeSuccess)
+	h := response.GetDefaultHeaders(b.Len())
+	response.WriteStatusLine(conn, sc)
 	response.WriteHeaders(conn, h)
 	_, err = conn.Write(b.Bytes())
 	if err != nil {
