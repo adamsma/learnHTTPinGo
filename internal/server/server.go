@@ -10,11 +10,12 @@ import (
 	"sync/atomic"
 )
 
+// HTTP 1.1 server
 type Server struct {
 	Port     int
 	listener net.Listener
 	closed   atomic.Bool
-	Handler  Handler
+	handler  Handler
 }
 
 func Serve(port int, handler Handler) (*Server, error) {
@@ -25,7 +26,7 @@ func Serve(port int, handler Handler) (*Server, error) {
 		return nil, err
 	}
 
-	s := Server{Port: port, listener: l, Handler: handler}
+	s := Server{Port: port, listener: l, handler: handler}
 	s.closed.Store(false)
 
 	go s.listen()
@@ -69,21 +70,23 @@ func (s *Server) handle(conn net.Conn) {
 
 	req, err := request.RequestFromReader(conn)
 	if err != nil {
-		fmt.Printf("error: %v\n", err)
+		hErr := &HandlerError{
+			StatusCode: response.StatusCodeBadRequest,
+			Message:    err.Error(),
+		}
+		hErr.Write(conn)
 		return
 	}
 
-	sc := response.StatusCodeSuccess
-
-	var b bytes.Buffer
-	hErr := s.Handler(&b, req)
+	b := bytes.NewBuffer([]byte{})
+	hErr := s.handler(b, req)
 	if hErr != nil {
-		hErr.Write(&b)
-		sc = hErr.StatusCode
+		hErr.Write(conn)
+		return
 	}
 
+	response.WriteStatusLine(conn, response.StatusCodeSuccess)
 	h := response.GetDefaultHeaders(b.Len())
-	response.WriteStatusLine(conn, sc)
 	response.WriteHeaders(conn, h)
 	_, err = conn.Write(b.Bytes())
 	if err != nil {

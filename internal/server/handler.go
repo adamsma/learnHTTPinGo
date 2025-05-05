@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
 	"io"
@@ -14,6 +13,10 @@ type HandlerError struct {
 	Message    string
 }
 
-func (h *HandlerError) Write(w io.Writer) {
-	w.Write([]byte(fmt.Sprintf("Status %d: %s", h.StatusCode, h.Message)))
+func (he *HandlerError) Write(w io.Writer) {
+	response.WriteStatusLine(w, he.StatusCode)
+	msgBytes := []byte(he.Message)
+	headers := response.GetDefaultHeaders(len(msgBytes))
+	response.WriteHeaders(w, headers)
+	w.Write(msgBytes)
 }
