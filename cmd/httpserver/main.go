@@ -4,7 +4,6 @@ import (
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
 	"httpfromtcp/internal/server"
-	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -13,26 +12,79 @@ import (
 
 const port = 42069
 
+const badRequestHTML = `
+<html>
+  <head>
+    <title>400 Bad Request</title>
+  </head>
+  <body>
+    <h1>Bad Request</h1>
+    <p>Your request honestly kinda sucked.</p>
+  </body>
+</html>
+`
+
+const internalErrorHTML = `
+<html>
+  <head>
+    <title>500 Internal Server Error</title>
+  </head>
+  <body>
+    <h1>Internal Server Error</h1>
+    <p>Okay, you know what? This one is on me.</p>
+  </body>
+</html>
+`
+
+const successHTML = `
+<html>
+  <head>
+    <title>200 OK</title>
+  </head>
+  <body>
+    <h1>Success!</h1>
+    <p>Your request was an absolute banger.</p>
+  </body>
+</html>
+`
+
 func main() {
 
-	h := func(w io.Writer, req *request.Request) *server.HandlerError {
+	h := func(w *response.Writer, req *request.Request) {
 
 		switch req.RequestLine.RequestTarget {
 		case "/yourproblem":
-			return &server.HandlerError{
-				StatusCode: response.StatusCodeBadRequest,
-				Message:    "Your problem is not my problem\n",
-			}
-		case "/myproblem":
-			return &server.HandlerError{
-				StatusCode: response.StatusCodeInternalServerError,
-				Message:    "Woopsie, my bad\n",
-			}
-		default:
-			w.Write([]byte("All good, frfr\n"))
-		}
 
-		return nil
+			w.WriteStatusLine(response.StatusCodeBadRequest)
+
+			h := response.GetDefaultHeaders(len(badRequestHTML))
+			h.Set("content-type", "text/html")
+			w.WriteHeaders(h)
+
+			w.WriteBody([]byte(badRequestHTML))
+
+		case "/myproblem":
+
+			w.WriteStatusLine(response.StatusCodeInternalServerError)
+
+			h := response.GetDefaultHeaders(len(internalErrorHTML))
+			h.Set("content-type", "text/html")
+			w.WriteHeaders(h)
+
+			w.WriteHeaders(h)
+			w.WriteBody([]byte(internalErrorHTML))
+
+		default:
+
+			w.WriteStatusLine(response.StatusCodeSuccess)
+
+			h := response.GetDefaultHeaders(len(successHTML))
+			h.Set("content-type", "text/html")
+			w.WriteHeaders(h)
+
+			w.WriteBody([]byte(successHTML))
+
+		}
 
 	}
 

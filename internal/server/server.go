@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
@@ -78,20 +77,7 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 
-	b := bytes.NewBuffer([]byte{})
-	hErr := s.handler(b, req)
-	if hErr != nil {
-		hErr.Write(conn)
-		return
-	}
-
-	response.WriteStatusLine(conn, response.StatusCodeSuccess)
-	h := response.GetDefaultHeaders(b.Len())
-	response.WriteHeaders(conn, h)
-	_, err = conn.Write(b.Bytes())
-	if err != nil {
-		fmt.Printf("error: %v\n", err)
-		return
-	}
+	w := response.NewWriter(conn)
+	s.handler(&w, req)
 
 }
