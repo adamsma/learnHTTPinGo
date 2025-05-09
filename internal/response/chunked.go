@@ -29,9 +29,9 @@ func (w *Writer) WriteChunkedBodyDone() (int, error) {
 		return 0, errors.New("cannot write headers in current write state")
 	}
 
-	n, err := w.conn.Write([]byte("0\r\n\r\n"))
+	n, err := w.conn.Write([]byte("0\r\n"))
 
-	w.writeState = WriteStateClosed
+	w.writeState = WriteStateTrailers
 
 	return n, err
 }

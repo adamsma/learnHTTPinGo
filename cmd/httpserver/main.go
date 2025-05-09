@@ -1,10 +1,13 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"httpfromtcp/internal/headers"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
 	"httpfromtcp/internal/server"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -79,33 +82,7 @@ func main() {
 
 		case strings.HasPrefix(t, "/httpbin"):
 
-			w.WriteStatusLine(response.StatusCodeSuccess)
-
-			h := response.GetDefaultHeaders(0)
-			h.Set("Transfer-Encoding", "chunked")
-			h.Set("content-type", "text/html")
-			h.Delete("Content-Length")
-			w.WriteHeaders(h)
-
-			res, err := http.Get("https://httpbin.org/" + strings.TrimPrefix(t, "/httpbin"))
-			if err != nil {
-				log.Fatal(err)
-			}
-			buf := make([]byte, 1024)
-
-			for {
-
-				n, err := res.Body.Read(buf)
-				if err != nil {
-					log.Printf("loop done: %v", err)
-					break
-				}
-				fmt.Printf("Bytes Read: %d\n", n)
-
-				w.WriteChunkedBody(buf[:n])
-			}
-
-			w.WriteChunkedBodyDone()
+			proxyHandler(w, req)
 
 		default:
 
@@ -132,4 +109,71 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 	log.Println("Server gracefully stopped")
+}
+
+func proxyHandler(w *response.Writer, req *request.Request) {
+
+	w.WriteStatusLine(response.StatusCodeSuccess)
+
+	h := response.GetDefaultHeaders(0)
+	h.Set("Transfer-Encoding", "chunked")
+	h.Set("Trailer", "X-Content-SHA256")
+	h.Set("Trailer", "X-Content-Length")
+	h.Override("content-type", "text/html")
+	h.Delete("Content-Length")
+	w.WriteHeaders(h)
+
+	target := strings.TrimPrefix(req.RequestLine.RequestTarget, "/httpbin/")
+	url := "https://httpbin.org/" + target
+
+	res, err := http.Get(url)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	const maxChunkSize = 1024
+	buf := make([]byte, maxChunkSize)
+	msg := make([]byte, 0)
+
+	for {
+
+		n, err := res.Body.Read(buf)
+
+		if n > 0 {
+			_, err = w.WriteChunkedBody(buf[:n])
+			msg = append(msg, buf[:n]...)
+			if err != nil {
+				fmt.Println("Error writing chunked body:", err)
+				break
+			}
+		}
+
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			fmt.Println("Error reading response body:", err)
+			break
+		}
+
+	}
+
+	_, err = w.WriteChunkedBodyDone()
+	if err != nil {
+		fmt.Println("error writing chunked body done:", err)
+	}
+
+	hash := fmt.Sprintf("%x", sha256.Sum256(msg))
+
+	log.Printf("Hash: %x, Length: %d", hash, len(msg))
+
+	trailers := headers.NewHeaders()
+	trailers.Override("X-Content-SHA256", hash)
+	trailers.Set("X-Content-Length", fmt.Sprintf("%d", len(msg)))
+
+	err = w.WriteTrailers(trailers)
+	if err != nil {
+		fmt.Println("error writing trailers:", err)
+	}
+
 }

@@ -14,7 +14,20 @@ func NewHeaders() Headers {
 }
 
 func (h Headers) Set(key, value string) {
-	h[strings.ToLower(key)] = value
+	key = strings.ToLower(key)
+	v, ok := h[key]
+	if ok {
+		value = strings.Join([]string{
+			v,
+			value,
+		}, ", ")
+	}
+	h[key] = value
+}
+
+func (h Headers) Override(key, value string) {
+	key = strings.ToLower(key)
+	h[key] = value
 }
 
 func (h Headers) Get(key string) (value string, exists bool) {

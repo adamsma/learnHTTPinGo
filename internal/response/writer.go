@@ -13,6 +13,7 @@ const (
 	WriteStateStatusLine = iota
 	WriteStateHeaders
 	WriteStateBody
+	WriteStateTrailers
 	WriteStateClosed
 )
 
@@ -58,7 +59,7 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	}
 
 	n, err := w.conn.Write(p)
-	w.writeState = WriteStateClosed
+	w.writeState = WriteStateTrailers
 
 	return n, err
 
