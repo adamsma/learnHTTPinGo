@@ -14,12 +14,16 @@ func NewHeaders() Headers {
 }
 
 func (h Headers) Set(key, value string) {
-	h[key] = value
+	h[strings.ToLower(key)] = value
 }
 
 func (h Headers) Get(key string) (value string, exists bool) {
 	value, exists = h[strings.ToLower(key)]
 	return
+}
+
+func (h Headers) Delete(key string) {
+	delete(h, strings.ToLower(key))
 }
 
 const crlf = "\r\n"

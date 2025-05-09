@@ -1,12 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"httpfromtcp/internal/request"
 	"httpfromtcp/internal/response"
 	"httpfromtcp/internal/server"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 )
 
@@ -52,8 +55,8 @@ func main() {
 
 	h := func(w *response.Writer, req *request.Request) {
 
-		switch req.RequestLine.RequestTarget {
-		case "/yourproblem":
+		switch t := req.RequestLine.RequestTarget; {
+		case t == "/yourproblem":
 
 			w.WriteStatusLine(response.StatusCodeBadRequest)
 
@@ -63,7 +66,7 @@ func main() {
 
 			w.WriteBody([]byte(badRequestHTML))
 
-		case "/myproblem":
+		case t == "/myproblem":
 
 			w.WriteStatusLine(response.StatusCodeInternalServerError)
 
@@ -73,6 +76,36 @@ func main() {
 
 			w.WriteHeaders(h)
 			w.WriteBody([]byte(internalErrorHTML))
+
+		case strings.HasPrefix(t, "/httpbin"):
+
+			w.WriteStatusLine(response.StatusCodeSuccess)
+
+			h := response.GetDefaultHeaders(0)
+			h.Set("Transfer-Encoding", "chunked")
+			h.Set("content-type", "text/html")
+			h.Delete("Content-Length")
+			w.WriteHeaders(h)
+
+			res, err := http.Get("https://httpbin.org/" + strings.TrimPrefix(t, "/httpbin"))
+			if err != nil {
+				log.Fatal(err)
+			}
+			buf := make([]byte, 1024)
+
+			for {
+
+				n, err := res.Body.Read(buf)
+				if err != nil {
+					log.Printf("loop done: %v", err)
+					break
+				}
+				fmt.Printf("Bytes Read: %d\n", n)
+
+				w.WriteChunkedBody(buf[:n])
+			}
+
+			w.WriteChunkedBodyDone()
 
 		default:
 
