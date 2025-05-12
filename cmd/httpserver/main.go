@@ -64,7 +64,7 @@ func main() {
 			w.WriteStatusLine(response.StatusCodeBadRequest)
 
 			h := response.GetDefaultHeaders(len(badRequestHTML))
-			h.Set("content-type", "text/html")
+			h.Override("content-type", "text/html")
 			w.WriteHeaders(h)
 
 			w.WriteBody([]byte(badRequestHTML))
@@ -74,7 +74,7 @@ func main() {
 			w.WriteStatusLine(response.StatusCodeInternalServerError)
 
 			h := response.GetDefaultHeaders(len(internalErrorHTML))
-			h.Set("content-type", "text/html")
+			h.Override("content-type", "text/html")
 			w.WriteHeaders(h)
 
 			w.WriteHeaders(h)
@@ -83,6 +83,22 @@ func main() {
 		case strings.HasPrefix(t, "/httpbin"):
 
 			proxyHandler(w, req)
+
+		case t == "/video":
+
+			w.WriteStatusLine(response.StatusCodeSuccess)
+
+			vid, err := os.ReadFile("assests/vim.mp4")
+			if err != nil {
+				fmt.Println("error loading video:", err)
+			}
+
+			h := response.GetDefaultHeaders(len(vid))
+			h.Override("content-type", "video/mp4")
+
+			w.WriteHeaders(h)
+
+			w.WriteBody(vid)
 
 		default:
 
